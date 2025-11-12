@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   MapContainer,
   TileLayer,
@@ -30,118 +30,112 @@ const MapDashboard = () => {
     return parts;
   };
 
- 
-
   // 📡 Fetch + group duplicate coordinates per PINCODE + store full record
-const fetchData = async () => {
-  try {
-    const res = await axios.get(API_URL);
-    const rows = res.data.data || [];
+  const fetchData = useCallback(async () => {
+    try {
+      const res = await axios.get(API_URL);
+      const rows = res.data.data || [];
 
-// 🧩 Step 1: Deduplicate by start_gps + end_gps + start_area_code + end_area_code
-const seen = new Set();
-const uniqueRows = rows.filter((r) => {
-  // 🛑 Helper to detect null-like or empty values
-  const isInvalid = (val) => {
-    if (val === null || val === undefined) return true;
-    if (typeof val === "string") {
-      const v = val.trim().toLowerCase();
-      return v === "" || v === "null" || v === "undefined";
-    }
-    return false;
-  };
+      // 🧩 Step 1: Deduplicate by start_gps + end_gps + start_area_code + end_area_code
+      const seen = new Set();
+      const uniqueRows = rows.filter((r) => {
+        // 🛑 Helper to detect null-like or empty values
+        const isInvalid = (val) => {
+          if (val === null || val === undefined) return true;
+          if (typeof val === "string") {
+            const v = val.trim().toLowerCase();
+            return v === "" || v === "null" || v === "undefined";
+          }
+          return false;
+        };
 
-  // 🛑 Skip if any of the key fields are invalid
-  if (
-    isInvalid(r.start_gps) ||
-    isInvalid(r.end_gps) ||
-    isInvalid(r.start_area_code) ||
-    isInvalid(r.end_area_code)
-  ) {
-    return false;
-  }
-
-  // 🧹 Clean GPS
-  const clean = (gps) => {
-    const cleaned = gps.replace(/[()]/g, "").trim();
-    const parts = cleaned.split(",").map((n) => parseFloat(n.trim()));
-    if (parts.length !== 2 || parts.some(isNaN)) return "";
-    return parts.map((x) => x.toFixed(5)).join(",");
-  };
-
-  const startGPS = clean(r.start_gps);
-  const endGPS = clean(r.end_gps);
-  const startPin = r.start_area_code.toString().trim();
-  const endPin = r.end_area_code.toString().trim();
-
-  // Skip if GPS failed to parse
-  if (!startGPS || !endGPS) return false;
-
-  // 🔄 Treat A→B and B→A as the same route
-  const forwardKey = [startGPS, endGPS, startPin, endPin].join("|");
-  const reverseKey = [endGPS, startGPS, endPin, startPin].join("|");
-
-  if (seen.has(forwardKey) || seen.has(reverseKey)) return false;
-  seen.add(forwardKey);
-  return true;
-});
-
-
-
-    // 🧮 Step 2: Group after deduplication
-    const grouped = {};
-    const pinSet = new Set();
-
-    uniqueRows.forEach((r) => {
-      const gpsList = [
-        { gps: r.start_gps, type: "start" },
-        { gps: r.end_gps, type: "end" },
-      ].filter((x) => x.gps);
-
-      const pin = r.start_area_code || r.end_area_code || "Unknown";
-      if (pin) pinSet.add(pin);
-
-      gpsList.forEach(({ gps, type }) => {
-        const coords = cleanCoords(gps);
-        if (!coords) return;
-
-        const key = `${pin}_${coords.join(",")}_${type}`;
-        if (!grouped[key]) {
-          grouped[key] = {
-            pincode: pin,
-            coords,
-            count: 0,
-            samples: [],
-          };
+        // 🛑 Skip if any of the key fields are invalid
+        if (
+          isInvalid(r.start_gps) ||
+          isInvalid(r.end_gps) ||
+          isInvalid(r.start_area_code) ||
+          isInvalid(r.end_area_code)
+        ) {
+          return false;
         }
 
-        grouped[key].count += 1;
-        grouped[key].samples.push({
-          action: r.action,
-          created_time: r.created_time,
-          bap_id: r.bap_id,
-          transaction_id: r.transaction_id,
-          message_id: r.message_id,
-          category: r.category,
-          category_id: r.category_id,
-          start_gps: r.start_gps,
-          end_gps: r.end_gps,
+        // 🧹 Clean GPS
+        const clean = (gps) => {
+          const cleaned = gps.replace(/[()]/g, "").trim();
+          const parts = cleaned.split(",").map((n) => parseFloat(n.trim()));
+          if (parts.length !== 2 || parts.some(isNaN)) return "";
+          return parts.map((x) => x.toFixed(5)).join(",");
+        };
+
+        const startGPS = clean(r.start_gps);
+        const endGPS = clean(r.end_gps);
+        const startPin = r.start_area_code.toString().trim();
+        const endPin = r.end_area_code.toString().trim();
+
+        // Skip if GPS failed to parse
+        if (!startGPS || !endGPS) return false;
+
+        // 🔄 Treat A→B and B→A as the same route
+        const forwardKey = [startGPS, endGPS, startPin, endPin].join("|");
+        const reverseKey = [endGPS, startGPS, endPin, startPin].join("|");
+
+        if (seen.has(forwardKey) || seen.has(reverseKey)) return false;
+        seen.add(forwardKey);
+        return true;
+      });
+
+      // 🧮 Step 2: Group after deduplication
+      const grouped = {};
+      const pinSet = new Set();
+
+      uniqueRows.forEach((r) => {
+        const gpsList = [
+          { gps: r.start_gps, type: "start" },
+          { gps: r.end_gps, type: "end" },
+        ].filter((x) => x.gps);
+
+        const pin = r.start_area_code || r.end_area_code || "Unknown";
+        if (pin) pinSet.add(pin);
+
+        gpsList.forEach(({ gps, type }) => {
+          const coords = cleanCoords(gps);
+          if (!coords) return;
+
+          const key = `${pin}_${coords.join(",")}_${type}`;
+          if (!grouped[key]) {
+            grouped[key] = {
+              pincode: pin,
+              coords,
+              count: 0,
+              samples: [],
+            };
+          }
+
+          grouped[key].count += 1;
+          grouped[key].samples.push({
+            action: r.action,
+            created_time: r.created_time,
+            bap_id: r.bap_id,
+            transaction_id: r.transaction_id,
+            message_id: r.message_id,
+            category: r.category,
+            category_id: r.category_id,
+            start_gps: r.start_gps,
+            end_gps: r.end_gps,
+          });
         });
       });
-    });
 
-    setData(Object.values(grouped));
-    setAllPins([...pinSet].sort());
-  } catch (err) {
-    console.error("❌ Error fetching data:", err);
-  }
-};
-
-
+      setData(Object.values(grouped));
+      setAllPins([...pinSet].sort());
+    } catch (err) {
+      console.error("❌ Error fetching data:", err);
+    }
+  }, [API_URL]);
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
 
   // 🎨 Color logic
   const getColor = (count) => {
@@ -184,7 +178,7 @@ const uniqueRows = rows.filter((r) => {
   return (
     <div>
       <h2 style={{ textAlign: "center", margin: "10px" }}>
-         Coordinates by Pincode (Full Details on Hover)
+        Coordinates by Pincode (Full Details on Hover)
       </h2>
 
       {/* 🔽 Dropdown Filter */}
