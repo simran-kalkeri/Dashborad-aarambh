@@ -1,0 +1,15 @@
+{
+  "files": {
+    "main.css": "/Dashborad-aarambh/static/css/main.323d7611.css",
+    "main.js": "/Dashborad-aarambh/static/js/main.c6e9bd32.js",
+    "static/js/453.fc8139de.chunk.js": "/Dashborad-aarambh/static/js/453.fc8139de.chunk.js",
+    "index.html": "/Dashborad-aarambh/index.html",
+    "main.323d7611.css.map": "/Dashborad-aarambh/static/css/main.323d7611.css.map",
+    "main.c6e9bd32.js.map": "/Dashborad-aarambh/static/js/main.c6e9bd32.js.map",
+    "453.fc8139de.chunk.js.map": "/Dashborad-aarambh/static/js/453.fc8139de.chunk.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.323d7611.css",
+    "static/js/main.c6e9bd32.js"
+  ]
+}
